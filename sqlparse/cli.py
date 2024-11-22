@@ -18,4 +18,60 @@ from sqlparse.exceptions import SQLParseError
 
 def _error(msg):
     """Print msg and optionally exit with return code exit_."""
-    pass
+    sys.stderr.write(msg + '\n')
+    sys.exit(1)
+
+def create_parser():
+    """Create and return command line parser."""
+    parser = argparse.ArgumentParser(
+        description='Format SQL files.',
+        usage='%(prog)s  [OPTIONS] FILE, ...',
+        add_help=True)
+    parser.add_argument('files', nargs='*', help='Files to be processed')
+    parser.add_argument('-o', '--outfile', help='Write output to FILE')
+    parser.add_argument('-r', '--reindent', action='store_true',
+                      help='Reindent statements')
+    parser.add_argument('-l', '--language', choices=['English'],
+                      help='Programming language (default: English)')
+    parser.add_argument('--encoding', default='utf-8',
+                      help='Specify the input encoding (default: utf-8)')
+    parser.add_argument('--indent-width', type=int, default=2,
+                      help='Number of spaces for indentation (default: 2)')
+    return parser
+
+def main(args=None):
+    """Main entry point."""
+    parser = create_parser()
+    args = parser.parse_args(args)
+
+    if not args.files:
+        parser.print_help()
+        sys.exit(1)
+
+    encoding = args.encoding
+    if encoding == 'utf-8':
+        # Python 3 reads files as utf-8 by default
+        encoding = None
+
+    for file_ in args.files:
+        try:
+            with open(file_, 'r', encoding=encoding) as f:
+                data = f.read()
+        except OSError as e:
+            _error('Failed to read {}: {}'.format(file_, e))
+            continue
+
+        if args.reindent:
+            data = sqlparse.format(data, reindent=True,
+                                 indent_width=args.indent_width)
+
+        if args.outfile:
+            try:
+                with open(args.outfile, 'w', encoding=encoding) as f:
+                    f.write(data)
+            except OSError as e:
+                _error('Failed to write to {}: {}'.format(args.outfile, e))
+        else:
+            sys.stdout.write(data)
+
+    return 0
