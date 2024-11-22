@@ -99,3 +99,16 @@ def imt(token, i=None, m=None, t=None):
 def consume(iterator, n):
     """Advance the iterator n-steps ahead. If n is none, consume entirely."""
     deque(itertools.islice(iterator, n), maxlen=0) if n is not None else deque(iterator, maxlen=0)
+
+def offset(token):
+    """Returns the indentation offset of a token."""
+    line = token.value.splitlines()[0]
+    initial_whitespace = len(line) - len(line.lstrip())
+    return initial_whitespace
+
+def indent(stream, n=2, char=' '):
+    """Returns a stream of tokens with each token indented by n characters."""
+    for token in stream:
+        token.value = '\n'.join(char * n + line if line else ''
+                               for line in token.value.splitlines())
+        yield token
