@@ -10,11 +10,37 @@ def split_unquoted_newlines(stmt):
 
     Unlike str.splitlines(), this will ignore CR/LF/CR+LF if the requisite
     character is inside of a string."""
-    pass
+    matches = SPLIT_REGEX.finditer(stmt)
+    matches = list(matches)
+    if not matches:
+        return [stmt]
+
+    # If there are no matches, return the string as is
+    if not matches:
+        return [stmt]
+
+    pieces = []
+    last_end = 0
+    for match in matches:
+        start, end = match.span()
+        if start > last_end:
+            pieces.append(stmt[last_end:start])
+        pieces.append(stmt[start:end])
+        last_end = end
+
+    if last_end < len(stmt):
+        pieces.append(stmt[last_end:])
+
+    return pieces
 
 def remove_quotes(val):
     """Helper that removes surrounding quotes from strings."""
-    pass
+    if not val:
+        return val
+
+    if val[0] in ('"', "'") and val[-1] == val[0]:
+        return val[1:-1]
+    return val
 
 def recurse(*cls):
     """Function decorator to help with recursion
@@ -22,7 +48,16 @@ def recurse(*cls):
     :param cls: Classes to not recurse over
     :return: function
     """
-    pass
+    def wrap(f):
+        def wrapped(tlist):
+            for token in tlist.tokens:
+                if not isinstance(token, cls):
+                    for t in token.flatten():
+                        if isinstance(t, cls):
+                            f(t)
+            f(tlist)
+        return wrapped
+    return wrap
 
 def imt(token, i=None, m=None, t=None):
     """Helper function to simplify comparisons Instance, Match and TokenType
@@ -32,8 +67,35 @@ def imt(token, i=None, m=None, t=None):
     :param t: TokenType or Tuple/List of TokenTypes
     :return:  bool
     """
-    pass
+    if i is not None and isinstance(i, (list, tuple)):
+        for cls in i:
+            if isinstance(token, cls):
+                return True
+        return False
+
+    if i is not None:
+        return isinstance(token, i)
+
+    if m is not None and isinstance(m, (list, tuple)) and not isinstance(m[0], tuple):
+        m = [m]
+
+    if m is not None:
+        for m_ttype, m_value in m:
+            if token.match(m_ttype, m_value):
+                return True
+        return False
+
+    if t is not None and isinstance(t, (list, tuple)):
+        for ttype in t:
+            if token.ttype is ttype:
+                return True
+        return False
+
+    if t is not None:
+        return token.ttype is t
+
+    return True
 
 def consume(iterator, n):
     """Advance the iterator n-steps ahead. If n is none, consume entirely."""
-    pass
+    deque(itertools.islice(iterator, n), maxlen=0) if n is not None else deque(iterator, maxlen=0)
