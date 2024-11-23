@@ -84,8 +84,13 @@ class Lexer:
 
         iterable = enumerate(text)
         for pos, char in iterable:
-            # Skip whitespace
+            # Handle whitespace
             if char.isspace():
+                end = pos + 1
+                while end < len(text) and text[end].isspace():
+                    end += 1
+                consume(iterable, end - pos - 1)
+                yield tokens.Whitespace, text[pos:end]
                 continue
 
             # Handle comments
@@ -125,13 +130,16 @@ class Lexer:
                 continue
 
             # Handle identifiers and keywords
-            if char.isalpha() or char == '_':
+            if char.isalpha() or char == '_' or char == '$':
                 end = pos + 1
-                while end < len(text) and (text[end].isalnum() or text[end] == '_'):
+                while end < len(text) and (text[end].isalnum() or text[end] in '_$'):
                     end += 1
                 word = text[pos:end]
                 consume(iterable, end - pos - 1)
-                yield self.is_keyword(word), word
+                if word.upper() in ('ASC', 'DESC'):
+                    yield tokens.Keyword.Order, word
+                else:
+                    yield self.is_keyword(word), word
                 continue
 
             # Handle operators and punctuation
