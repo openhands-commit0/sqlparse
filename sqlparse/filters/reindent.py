@@ -19,4 +19,44 @@ class ReindentFilter:
 
     def _flatten_up_to_token(self, token):
         """Yields all tokens up to token but excluding current."""
-        pass
+        if token is None:
+            return
+        parent = token.parent
+        if parent is None:
+            return
+
+        for t in parent.tokens:
+            if t == token:
+                break
+            yield t
+
+    def _get_offset(self, token):
+        raw = str(token)
+        line = raw.splitlines()[0]
+        initial_whitespace = len(line) - len(line.lstrip())
+        return initial_whitespace
+
+    def _get_offset_at_depth(self, token, depth):
+        offset = 0
+        for t in self._flatten_up_to_token(token):
+            if t.is_whitespace:
+                continue
+            offset += self._get_offset(t)
+        return offset + (depth * self.width)
+
+    def process(self, stream):
+        """Process the stream."""
+        for token in stream:
+            if token.is_whitespace:
+                token.value = self.n
+                yield token
+                continue
+
+            if token.is_group:
+                depth = len(list(self._flatten_up_to_token(token)))
+                offset = self._get_offset_at_depth(token, depth)
+                token.value = self.char * offset + str(token)
+                yield token
+                continue
+
+            yield token
