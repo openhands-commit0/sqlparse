@@ -38,7 +38,7 @@ def remove_quotes(val):
     if not val:
         return val
 
-    if val[0] in ('"', "'") and val[-1] == val[0]:
+    if val[0] in ('"', "'", '`') and val[-1] == val[0]:
         return val[1:-1]
     return val
 

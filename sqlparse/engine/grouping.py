@@ -1,6 +1,11 @@
 from sqlparse import sql
 from sqlparse import tokens as T
 from sqlparse.utils import recurse, imt
+from sqlparse.sql import (
+    Parenthesis, SquareBrackets, Case, If, For, Begin,
+    TypedLiteral, Identifier, IdentifierList, Operation,
+    Values, Command, Comparison, Assignment, Where, Having, Over
+)
 T_NUMERICAL = (T.Number, T.Number.Integer, T.Number.Float)
 T_STRING = (T.String, T.String.Single, T.String.Symbol)
 T_NAME = (T.Name, T.Name.Placeholder)
@@ -47,6 +52,22 @@ def group_order(tlist):
             idx = tlist.token_index(grp) + 1
         else:
             idx += 1
+
+def group(stream):
+    """Group together tokens that form SQL statements."""
+    for cls in (Parenthesis, SquareBrackets, Case, If, For, Begin,
+               TypedLiteral, Identifier, IdentifierList, Operation,
+               Values, Command):
+        _group_matching(stream, cls)
+
+    _group(stream, Comparison, (T.Operator.Comparison,))
+    _group(stream, Assignment, (T.Assignment,))
+    _group(stream, Where, (T.Keyword, 'WHERE'))
+    _group(stream, Having, (T.Keyword, 'HAVING'))
+    _group(stream, Over, (T.Keyword, 'OVER'))
+
+    group_order(stream)
+    return stream
 
 def _group(tlist, cls, match, valid_prev=lambda t: True, valid_next=lambda t: True, post=None, extend=True, recurse=True):
     """Groups together tokens that are joined by a middle token. i.e. x < y"""

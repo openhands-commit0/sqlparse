@@ -38,6 +38,15 @@ class Token:
     def __str__(self):
         return self.value
 
+    def _get_repr_name(self):
+        return self.__class__.__name__
+
+    def _get_repr_value(self):
+        raw = str(self)
+        if len(raw) > 7:
+            raw = raw[:7] + '...'
+        return raw
+
     def __repr__(self):
         cls = self._get_repr_name()
         value = self._get_repr_value()
@@ -229,6 +238,30 @@ class TokenList(Token):
         for idx, t in enumerate(self.tokens[start:], start=start):
             if token is t:
                 return idx
+        return None
+
+    def token_matching(self, token, idx):
+        """Returns the matching token for a token at given index."""
+        if not token.is_group:
+            return None
+
+        if not hasattr(token, 'M_OPEN') or not hasattr(token, 'M_CLOSE'):
+            return None
+
+        open_token = token.match(*token.M_OPEN)
+        close_token = token.match(*token.M_CLOSE)
+
+        if not open_token or not close_token:
+            return None
+
+        depth = 1
+        for t_idx, t in enumerate(self.tokens[idx + 1:], start=idx + 1):
+            if t.match(*token.M_OPEN):
+                depth += 1
+            elif t.match(*token.M_CLOSE):
+                depth -= 1
+                if depth == 0:
+                    return t_idx
         return None
 
     def group_tokens(self, grp_cls, start, end, include_end=True, extend=False):
