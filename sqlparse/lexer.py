@@ -15,28 +15,39 @@ class Lexer:
     def get_default_instance(cls):
         """Returns the lexer instance used internally
         by the sqlparse core functions."""
-        pass
+        with cls._lock:
+            if cls._default_instance is None:
+                cls._default_instance = cls()
+                cls._default_instance.default_initialization()
+            return cls._default_instance
 
     def default_initialization(self):
         """Initialize the lexer with default dictionaries.
         Useful if you need to revert custom syntax settings."""
-        pass
+        self.clear()
+        self.add_keywords(keywords.KEYWORDS)
+        self.add_keywords(keywords.KEYWORDS_COMMON)
+        self.add_keywords(keywords.KEYWORDS_ORACLE)
+        self.add_keywords(keywords.KEYWORDS_PLPGSQL)
+        self.add_keywords(keywords.KEYWORDS_HQL)
+        self.add_keywords(keywords.KEYWORDS_MSACCESS)
 
     def clear(self):
         """Clear all syntax configurations.
         Useful if you want to load a reduced set of syntax configurations.
         After this call, regexps and keyword dictionaries need to be loaded
         to make the lexer functional again."""
-        pass
+        self._keywords = []
+        self._SQL_REGEX = []
 
     def set_SQL_REGEX(self, SQL_REGEX):
         """Set the list of regex that will parse the SQL."""
-        pass
+        self._SQL_REGEX = SQL_REGEX
 
     def add_keywords(self, keywords):
         """Add keyword dictionaries. Keywords are looked up in the same order
         that dictionaries were added."""
-        pass
+        self._keywords.append(keywords)
 
     def is_keyword(self, value):
         """Checks for a keyword.
@@ -44,7 +55,11 @@ class Lexer:
         If the given value is in one of the KEYWORDS_* dictionary
         it's considered a keyword. Otherwise, tokens.Name is returned.
         """
-        pass
+        val = value.upper()
+        for kwdict in self._keywords:
+            if val in kwdict:
+                return kwdict[val]
+        return tokens.Name
 
     def get_tokens(self, text, encoding=None):
         """
@@ -59,7 +74,82 @@ class Lexer:
 
         ``stack`` is the initial stack (default: ``['root']``)
         """
-        pass
+        if isinstance(text, TextIOBase):
+            text = text.read()
+
+        if encoding is not None:
+            if isinstance(text, str):
+                text = text.encode(encoding)
+            text = text.decode(encoding)
+
+        iterable = enumerate(text)
+        for pos, char in iterable:
+            # Skip whitespace
+            if char.isspace():
+                continue
+
+            # Handle comments
+            if char == '-' and text[pos + 1] == '-':
+                end = text.find('\n', pos)
+                if end == -1:
+                    end = len(text)
+                consume(iterable, end - pos - 1)
+                yield tokens.Comment.Single, text[pos:end]
+                continue
+
+            # Handle string literals
+            if char in ('"', "'"):
+                end = pos + 1
+                escaped = False
+                while end < len(text):
+                    if text[end] == char and not escaped:
+                        break
+                    if text[end] == '\\':
+                        escaped = not escaped
+                    else:
+                        escaped = False
+                    end += 1
+                if end < len(text):
+                    end += 1
+                consume(iterable, end - pos - 1)
+                yield tokens.String, text[pos:end]
+                continue
+
+            # Handle numbers
+            if char.isdigit():
+                end = pos + 1
+                while end < len(text) and (text[end].isdigit() or text[end] == '.'):
+                    end += 1
+                consume(iterable, end - pos - 1)
+                yield tokens.Number, text[pos:end]
+                continue
+
+            # Handle identifiers and keywords
+            if char.isalpha() or char == '_':
+                end = pos + 1
+                while end < len(text) and (text[end].isalnum() or text[end] == '_'):
+                    end += 1
+                word = text[pos:end]
+                consume(iterable, end - pos - 1)
+                yield self.is_keyword(word), word
+                continue
+
+            # Handle operators and punctuation
+            if char in '+-*/%<>=!|&~^':
+                end = pos + 1
+                while end < len(text) and text[end] in '+-*/%<>=!|&~^':
+                    end += 1
+                consume(iterable, end - pos - 1)
+                yield tokens.Operator, text[pos:end]
+                continue
+
+            # Handle punctuation
+            if char in '()[]{},;.':
+                yield tokens.Punctuation, char
+                continue
+
+            # Handle unknown characters
+            yield tokens.Error, char
 
 def tokenize(sql, encoding=None):
     """Tokenize sql.
@@ -67,4 +157,5 @@ def tokenize(sql, encoding=None):
     Tokenize *sql* using the :class:`Lexer` and return a 2-tuple stream
     of ``(token type, value)`` items.
     """
-    pass
+    lexer = Lexer.get_default_instance()
+    return lexer.get_tokens(sql, encoding)
